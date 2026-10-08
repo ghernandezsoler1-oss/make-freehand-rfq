@@ -1,0 +1,209 @@
+{
+  "name": "Freehand RFQ - Fase 1 - Esqueleto reactivo (solo lectura)",
+  "flow": [
+    {
+      "id": 1,
+      "module": "google-email:TriggerWatchEmails",
+      "version": 2,
+      "parameters": {
+        "account": "GMAIL_CONNECTION",
+        "folder": "GMAIL_FOLDER",
+        "searchType": "simple",
+        "criteria": "UNSEEN",
+        "from": "",
+        "to": "",
+        "subject": "",
+        "text": "",
+        "markSeen": false,
+        "maxResults": 1
+      },
+      "mapper": {},
+      "metadata": {
+        "designer": { "x": 0, "y": 0, "name": "Gmail - Watch Emails (buzon compartido)" }
+      }
+    },
+    {
+      "id": 2,
+      "module": "regexp:Parser",
+      "version": 1,
+      "parameters": {
+        "pattern": "RFQ_ID_PATTERN_PENDIENTE_(\\S+)",
+        "global": false,
+        "sensitive": false,
+        "multiline": false,
+        "singleline": false,
+        "continueWhenNoRes": true
+      },
+      "mapper": {
+        "text": "{{1.subject}}"
+      },
+      "metadata": {
+        "designer": { "x": 300, "y": 0, "name": "Extraer RFQ ID del asunto (regex, placeholder)" }
+      }
+    },
+    {
+      "id": 3,
+      "module": "util:SetVariables",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "variables": [
+          { "name": "RFQ_ID", "value": "{{trim(2.`$1`)}}" }
+        ],
+        "scope": "roundtrip"
+      },
+      "metadata": {
+        "designer": { "x": 600, "y": 0, "name": "RFQ_ID" }
+      }
+    },
+    {
+      "id": 4,
+      "module": "google-sheets:filterRows",
+      "version": 2,
+      "parameters": {
+        "__IMTCONN__": "GOOGLE_SHEETS_CONNECTION"
+      },
+      "mapper": {
+        "from": "drive",
+        "spreadsheetId": "SPREADSHEET_ID",
+        "sheetId": "SHEET_ID",
+        "includesHeaders": true,
+        "tableFirstRow": "A1:Z1",
+        "filter": [
+          [
+            { "a": "RFQ_ID_COLUMN", "b": "{{ifempty(3.RFQ_ID; \"__NO_RFQ_ID__\")}}", "o": "text:equal" }
+          ]
+        ],
+        "valueRenderOption": "FORMATTED_VALUE",
+        "dateTimeRenderOption": "FORMATTED_STRING",
+        "limit": "1"
+      },
+      "metadata": {
+        "designer": { "x": 900, "y": 0, "name": "Google Sheets - Search Rows por RFQ_ID (solo lectura)" }
+      }
+    },
+    {
+      "id": 5,
+      "module": "builtin:BasicAggregator",
+      "version": 1,
+      "parameters": {
+        "feeder": 4
+      },
+      "mapper": {
+        "__ROW_NUMBER__": "{{4.`__ROW_NUMBER__`}}"
+      },
+      "metadata": {
+        "designer": { "x": 1200, "y": 0, "name": "Resultado busqueda (0 o 1 fila)" }
+      }
+    },
+    {
+      "id": 6,
+      "module": "builtin:BasicRouter",
+      "version": 1,
+      "mapper": null,
+      "metadata": {
+        "designer": { "x": 1500, "y": 0 }
+      },
+      "routes": [
+        {
+          "flow": [
+            {
+              "id": 7,
+              "module": "util:SetVariable2",
+              "version": 1,
+              "parameters": {},
+              "filter": {
+                "name": "ROUTE 1 - RFQ FOUND",
+                "conditions": [
+                  [
+                    { "a": "{{3.RFQ_ID}}", "o": "exist" },
+                    { "a": "{{length(5.array)}}", "b": "0", "o": "number:greater" }
+                  ]
+                ]
+              },
+              "mapper": {
+                "name": "ROUTE_RESULT",
+                "scope": "roundtrip",
+                "value": "RFQ_FOUND"
+              },
+              "metadata": {
+                "designer": { "x": 1800, "y": -200, "name": "PLACEHOLDER - Route 1 RFQ FOUND" }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 8,
+              "module": "util:SetVariable2",
+              "version": 1,
+              "parameters": {},
+              "filter": {
+                "name": "ROUTE 2 - RFQ NOT FOUND",
+                "conditions": [
+                  [
+                    { "a": "{{3.RFQ_ID}}", "o": "exist" },
+                    { "a": "{{length(5.array)}}", "b": "0", "o": "number:equal" }
+                  ]
+                ]
+              },
+              "mapper": {
+                "name": "ROUTE_RESULT",
+                "scope": "roundtrip",
+                "value": "RFQ_NOT_FOUND"
+              },
+              "metadata": {
+                "designer": { "x": 1800, "y": 0, "name": "PLACEHOLDER - Route 2 RFQ NOT FOUND" }
+              }
+            }
+          ]
+        },
+        {
+          "flow": [
+            {
+              "id": 9,
+              "module": "util:SetVariable2",
+              "version": 1,
+              "parameters": {},
+              "filter": {
+                "name": "ROUTE 3 - FALLBACK (sin RFQ_ID en asunto)",
+                "conditions": [
+                  [
+                    { "a": "{{3.RFQ_ID}}", "o": "notexist" }
+                  ]
+                ]
+              },
+              "mapper": {
+                "name": "ROUTE_RESULT",
+                "scope": "roundtrip",
+                "value": "FALLBACK_NO_RFQ_ID"
+              },
+              "metadata": {
+                "designer": { "x": 1800, "y": 200, "name": "PLACEHOLDER - Route 3 FALLBACK" }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": true,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "freshVariables": false
+    },
+    "designer": {
+      "orphans": []
+    }
+  }
+}
